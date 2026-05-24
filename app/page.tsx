@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
   AlertTriangle,
   Briefcase,
@@ -106,6 +108,8 @@ type EmployeeListProps = {
 
 type EmployeeDetailProps = {
   employee: Employee;
+  activeTab: DetailTabKey;
+  onTabChange: (tab: DetailTabKey) => void;
   onBack: () => void;
 };
 
@@ -292,6 +296,35 @@ const statusStyles: Record<Status, string> = {
   มาสาย: "bg-red-100 text-red-700 border-red-200",
 };
 
+// Utility function to format Thai currency
+function formatThaiCurrency(amount: number): string {
+  return new Intl.NumberFormat("th-TH", {
+    style: "currency",
+    currency: "THB",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+// Helper to get current month in Thai
+function getCurrentMonthThai(): string {
+  const months = [
+    "มกราคม",
+    "กุมภาพันธ์",
+    "มีนาคม",
+    "เมษายน",
+    "พฤษภาคม",
+    "มิถุนายน",
+    "กรกฎาคม",
+    "สิงหาคม",
+    "กันยายน",
+    "ตุลาคม",
+    "พฤศจิกายน",
+    "ธันวาคม",
+  ];
+  return months[new Date().getMonth()];
+}
+
 function renderActiveView(
   activeMenu: MenuKey,
   onNavigate: (menu: MenuKey) => void,
@@ -311,12 +344,33 @@ function renderActiveView(
   }
 }
 
-export default function Page() {
+function PageContent() {
+  const searchParams = useSearchParams();
   const [activeMenu, setActiveMenu] = useState<MenuKey>("dashboard");
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
     null,
   );
+  const [activeDetailTab, setActiveDetailTab] = useState<DetailTabKey>("info");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Determine current values from URL params (for deep linking)
+  const urlMenu = (searchParams.get("menu") as MenuKey | null) || activeMenu;
+  const urlEmpId = searchParams.get("empId");
+  const urlEmployee = urlEmpId
+    ? mockEmployees.find((e) => e.id === urlEmpId)
+    : selectedEmployee;
+  const urlTab = (searchParams.get("tab") as DetailTabKey | null) || activeDetailTab;
+
+  // Sync state to URL when state changes
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set("menu", activeMenu);
+    if (selectedEmployee) {
+      params.set("empId", selectedEmployee.id);
+      params.set("tab", activeDetailTab);
+    }
+    window.history.replaceState(null, "", `?${params.toString()}`);
+  }, [activeMenu, selectedEmployee, activeDetailTab]);
 
   const handleMenuChange = (menu: MenuKey) => {
     setActiveMenu(menu);
@@ -339,6 +393,7 @@ export default function Page() {
         className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-slate-900 text-white transition-transform duration-300 md:relative md:translate-x-0 ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
+        style={{ overscrollBehavior: "contain" }}
       >
         <div className="flex items-center gap-3 border-b border-slate-800 p-5">
           <div className="rounded-lg bg-blue-500 p-2">
@@ -356,7 +411,7 @@ export default function Page() {
               key={item.key}
               icon={item.icon}
               label={item.label}
-              active={activeMenu === item.key}
+              active={urlMenu === item.key}
               onClick={() => handleMenuChange(item.key)}
             />
           ))}
@@ -375,13 +430,13 @@ export default function Page() {
             <button
               type="button"
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="rounded-lg p-2 text-gray-700 hover:bg-gray-100 md:hidden"
+              className="rounded-lg p-2 text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500 md:hidden"
               aria-label="Toggle menu"
             >
               <Menu className="h-6 w-6" />
             </button>
             <h2 className="text-lg font-semibold text-gray-800 md:text-xl">
-              {menuTitles[activeMenu]}
+              {menuTitles[urlMenu]}
             </h2>
           </div>
           <div className="flex items-center gap-3 md:gap-4">
@@ -393,17 +448,27 @@ export default function Page() {
         </header>
 
         <div className="relative flex-1 overflow-auto p-4 md:p-6">
-          {selectedEmployee ? (
+          {urlEmployee ? (
             <EmployeeDetail
-              employee={selectedEmployee}
+              employee={urlEmployee}
+              activeTab={urlTab}
+              onTabChange={setActiveDetailTab}
               onBack={() => setSelectedEmployee(null)}
             />
           ) : (
-            renderActiveView(activeMenu, handleMenuChange, setSelectedEmployee)
+            renderActiveView(urlMenu, handleMenuChange, setSelectedEmployee)
           )}
         </div>
       </main>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense>
+      <PageContent />
+    </Suspense>
   );
 }
 
@@ -432,7 +497,7 @@ function DashboardView({ onNavigate }: DashboardViewProps) {
             <button
               type="button"
               onClick={() => onNavigate("attendance")}
-              className="text-sm text-blue-600 hover:underline"
+              className="text-sm text-blue-600 hover:underline focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
             >
               ดูทั้งหมด
             </button>
@@ -461,31 +526,31 @@ function DashboardView({ onNavigate }: DashboardViewProps) {
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              className="flex flex-col items-center justify-center rounded-lg bg-blue-50 p-4 text-blue-700 transition-colors hover:bg-blue-100"
+              className="flex flex-col items-center justify-center rounded-lg bg-blue-50 p-4 text-blue-700 transition-colors hover:bg-blue-100 focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <Plus className="mb-2 h-6 w-6" />
-              <span className="text-sm font-medium">เพิ่มพนักงานใหม่</span>
+              <span className="text-sm font-medium">+ เพิ่มพนักงาน</span>
             </button>
             <button
               type="button"
-              className="flex flex-col items-center justify-center rounded-lg bg-green-50 p-4 text-green-700 transition-colors hover:bg-green-100"
+              className="flex flex-col items-center justify-center rounded-lg bg-green-50 p-4 text-green-700 transition-colors hover:bg-green-100 focus-visible:ring-2 focus-visible:ring-green-500"
             >
-              <FileText className="mb-2 h-6 w-6" />
-              <span className="text-sm font-medium">สรุปเงินเดือนเดือนนี้</span>
+              <CircleDollarSign className="mb-2 h-6 w-6" />
+              <span className="text-sm font-medium">จ่ายเงินเดือน</span>
             </button>
             <button
               type="button"
-              className="flex flex-col items-center justify-center rounded-lg bg-orange-50 p-4 text-orange-700 transition-colors hover:bg-orange-100"
+              className="flex flex-col items-center justify-center rounded-lg bg-orange-50 p-4 text-orange-700 transition-colors hover:bg-orange-100 focus-visible:ring-2 focus-visible:ring-orange-500"
             >
               <AlertTriangle className="mb-2 h-6 w-6" />
-              <span className="text-sm font-medium">บันทึกใบเตือน</span>
+              <span className="text-sm font-medium">ตักเตือน</span>
             </button>
             <button
               type="button"
-              className="flex flex-col items-center justify-center rounded-lg bg-purple-50 p-4 text-purple-700 transition-colors hover:bg-purple-100"
+              className="flex flex-col items-center justify-center rounded-lg bg-purple-50 p-4 text-purple-700 transition-colors hover:bg-purple-100 focus-visible:ring-2 focus-visible:ring-purple-500"
             >
               <CalendarClock className="mb-2 h-6 w-6" />
-              <span className="text-sm font-medium">อนุมัติวันลา</span>
+              <span className="text-sm font-medium">อนุมัติลา</span>
             </button>
           </div>
         </div>
@@ -508,9 +573,9 @@ function EmployeeList({ onSelect }: EmployeeListProps) {
         </div>
         <button
           type="button"
-          className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+          className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-300"
         >
-          <Plus className="h-4 w-4" /> เพิ่มพนักงาน
+          <Plus className="h-4 w-4" /> + เพิ่มพนักงาน
         </button>
       </div>
 
@@ -533,7 +598,7 @@ function EmployeeList({ onSelect }: EmployeeListProps) {
             <button
               type="button"
               onClick={() => onSelect(employee)}
-              className="w-full rounded-md bg-blue-50 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-100"
+              className="w-full rounded-md bg-blue-50 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-100 focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               ดูข้อมูล
             </button>
@@ -578,7 +643,7 @@ function EmployeeList({ onSelect }: EmployeeListProps) {
                   <button
                     type="button"
                     onClick={() => onSelect(employee)}
-                    className="rounded-md px-3 py-1 text-blue-600 transition-colors hover:bg-blue-100"
+                    className="rounded-md px-3 py-1 text-blue-600 transition-colors hover:bg-blue-100 focus-visible:ring-2 focus-visible:ring-blue-500"
                   >
                     ดูข้อมูล
                   </button>
@@ -592,15 +657,18 @@ function EmployeeList({ onSelect }: EmployeeListProps) {
   );
 }
 
-function EmployeeDetail({ employee, onBack }: EmployeeDetailProps) {
-  const [activeTab, setActiveTab] = useState<DetailTabKey>("info");
-
+function EmployeeDetail({
+  employee,
+  activeTab,
+  onTabChange,
+  onBack,
+}: EmployeeDetailProps) {
   return (
     <div className="animate-in slide-in-from-bottom-4 fade-in duration-300">
       <button
         type="button"
         onClick={onBack}
-        className="mb-3 flex items-center gap-2 text-sm text-gray-500 transition-colors hover:text-gray-900 md:mb-4"
+        className="mb-3 flex items-center gap-2 text-sm text-gray-500 transition-colors hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-blue-500 rounded md:mb-4"
       >
         <X className="h-4 w-4" /> ปิดหน้าต่าง
       </button>
@@ -617,19 +685,22 @@ function EmployeeDetail({ employee, onBack }: EmployeeDetailProps) {
             </p>
             <p className="text-xs text-blue-100 sm:text-sm">{employee.department}</p>
             <p className="mt-2 flex flex-col items-center gap-1 text-xs text-blue-100 sm:flex-row sm:gap-3">
-              <span><FileBadge className="inline h-3 w-3 mr-1" />รหัส: {employee.id}</span>
+              <span>
+                <FileBadge className="inline h-3 w-3 mr-1" />
+                รหัส: {employee.id}
+              </span>
               <span className="hidden sm:inline">|</span>
               <span>เริ่มงาน: {employee.startDate}</span>
             </p>
           </div>
         </div>
 
-        <div className="flex overflow-x-auto border-b border-gray-200 px-2">
+        <div className="flex overflow-x-auto border-b border-gray-200 px-2" style={{ overscrollBehavior: "contain" }}>
           {employeeDetailTabs.map((tab) => (
             <TabButton
               key={tab.key}
               active={activeTab === tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => onTabChange(tab.key)}
               icon={tab.icon}
               label={tab.label}
             />
@@ -658,7 +729,7 @@ function EmployeeDetail({ employee, onBack }: EmployeeDetailProps) {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">ที่อยู่:</span>
-                    <span className="text-right">123 ถ.สุขุมวิท กทม.</span>
+                    <span>123 ซอยลาดพร้าว กรุงเทพฯ</span>
                   </div>
                 </div>
               </div>
@@ -668,7 +739,7 @@ function EmployeeDetail({ employee, onBack }: EmployeeDetailProps) {
                   <span>เอกสารพนักงาน</span>
                   <button
                     type="button"
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs text-blue-600 hover:underline focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
                   >
                     + อัปโหลด
                   </button>
@@ -696,32 +767,32 @@ function EmployeeDetail({ employee, onBack }: EmployeeDetailProps) {
               <table className="w-full text-left text-sm">
                 <thead className="border-b bg-gray-50">
                   <tr>
-                    <th className="p-3">วันที่</th>
-                    <th className="p-3">ประเภท</th>
-                    <th className="p-3">หมายเหตุ</th>
+                    <th className="p-3 font-medium">วันที่</th>
+                    <th className="p-3 font-medium">ประเภท</th>
+                    <th className="p-3 font-medium">หมายเหตุ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   <tr>
-                    <td className="p-3">2023-10-24</td>
-                    <td className="p-3">
-                      <StatusBadge status="ลาพักร้อน" />
-                    </td>
-                    <td className="p-3">พาครอบครัวไปเที่ยว</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3">2023-09-15</td>
-                    <td className="p-3">
-                      <StatusBadge status="มาสาย" />
-                    </td>
-                    <td className="p-3">รถติดหนัก สาย 20 นาที</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3">2023-08-02</td>
+                    <td className="p-3">2023-10-25</td>
                     <td className="p-3">
                       <StatusBadge status="ลาป่วย" />
                     </td>
-                    <td className="p-3">อาหารเป็นพิษ มีใบรับรองแพทย์</td>
+                    <td className="p-3 text-gray-600">ไข้หวัดใหญ่</td>
+                  </tr>
+                  <tr>
+                    <td className="p-3">2023-10-20</td>
+                    <td className="p-3">
+                      <StatusBadge status="ลาพักร้อน" />
+                    </td>
+                    <td className="p-3 text-gray-600">ลาตามประสงค์</td>
+                  </tr>
+                  <tr>
+                    <td className="p-3">2023-10-15</td>
+                    <td className="p-3">
+                      <StatusBadge status="ปกติ" />
+                    </td>
+                    <td className="p-3 text-gray-600">ปกติ</td>
                   </tr>
                 </tbody>
               </table>
@@ -737,12 +808,12 @@ function EmployeeDetail({ employee, onBack }: EmployeeDetailProps) {
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">เงินเดือนพื้นฐาน:</span>
                   <span className="text-lg font-medium">
-                    ฿{employee.salary.toLocaleString()}
+                    {formatThaiCurrency(employee.salary)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">เบี้ยขยัน (สูงสุด):</span>
-                  <span className="font-medium text-green-600">+ ฿1,000</span>
+                  <span className="font-medium text-green-600">+ {formatThaiCurrency(1000)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">ค่าคอมมิชชั่น:</span>
@@ -760,7 +831,7 @@ function EmployeeDetail({ employee, onBack }: EmployeeDetailProps) {
                 </h4>
                 <button
                   type="button"
-                  className="rounded bg-red-100 px-3 py-1 text-sm text-red-700 hover:bg-red-200"
+                  className="rounded bg-red-100 px-3 py-1 text-sm text-red-700 hover:bg-red-200 focus-visible:ring-2 focus-visible:ring-red-500"
                 >
                   + เพิ่มใบเตือน
                 </button>
@@ -788,7 +859,7 @@ function AttendanceView() {
         </div>
         <button
           type="button"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-300"
         >
           + บันทึกการลา/สาย
         </button>
@@ -850,21 +921,21 @@ function PayrollView() {
     <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
       <div className="flex flex-col justify-between gap-3 border-b border-gray-100 p-4 sm:gap-4 sm:p-6 md:flex-row md:items-center">
         <div>
-          <h3 className="text-base font-semibold sm:text-lg">สรุปเงินเดือนพนักงาน</h3>
-          <p className="text-xs text-gray-500 sm:text-sm">งวดบัญชี: ตุลาคม 2566</p>
+          <h3 className="text-base font-semibold sm:text-lg">เงินเดือนประจำเดือน {getCurrentMonthThai()}</h3>
+          <p className="text-xs text-gray-500 sm:text-sm">จำนวนพนักงาน: {mockPayroll.length} คน</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-blue-500"
           >
-            ส่งออก Excel
+            📥 ส่งออก Excel
           </button>
           <button
             type="button"
-            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 focus-visible:ring-2 focus-visible:ring-green-300"
           >
-            ยืนยันจ่าย
+            ✓ ยืนยันจ่ายเงินเดือน {getCurrentMonthThai()}
           </button>
         </div>
       </div>
@@ -880,30 +951,30 @@ function PayrollView() {
             <div className="space-y-1 text-xs text-gray-600 sm:text-sm">
               <div className="flex justify-between">
                 <span>เงินเดือน:</span>
-                <span>฿{payroll.base.toLocaleString()}</span>
+                <span>{formatThaiCurrency(payroll.base)}</span>
               </div>
               {payroll.commission > 0 && (
                 <div className="flex justify-between text-blue-600">
                   <span>ค่าคอมฯ:</span>
-                  <span>฿{payroll.commission.toLocaleString()}</span>
+                  <span>{formatThaiCurrency(payroll.commission)}</span>
                 </div>
               )}
               {payroll.allowance > 0 && (
                 <div className="flex justify-between text-green-600">
                   <span>เบี้ยขยัน:</span>
-                  <span>฿{payroll.allowance.toLocaleString()}</span>
+                  <span>{formatThaiCurrency(payroll.allowance)}</span>
                 </div>
               )}
               {payroll.deduct > 0 && (
                 <div className="flex justify-between text-red-600">
                   <span>หัก:</span>
-                  <span>-฿{payroll.deduct.toLocaleString()}</span>
+                  <span>-{formatThaiCurrency(payroll.deduct)}</span>
                 </div>
               )}
               <div className="border-t border-gray-200 pt-1 font-bold text-blue-800">
                 <div className="flex justify-between">
                   <span>รับสุทธิ:</span>
-                  <span>฿{payroll.total.toLocaleString()}</span>
+                  <span>{formatThaiCurrency(payroll.total)}</span>
                 </div>
               </div>
             </div>
@@ -939,25 +1010,25 @@ function PayrollView() {
                 <td className="p-3 text-gray-500">{payroll.empId}</td>
                 <td className="p-3 font-medium">{payroll.name}</td>
                 <td className="p-3 text-right">
-                  {payroll.base.toLocaleString()}
+                  {formatThaiCurrency(payroll.base)}
                 </td>
                 <td className="p-3 text-right">
                   {payroll.commission > 0
-                    ? payroll.commission.toLocaleString()
+                    ? formatThaiCurrency(payroll.commission)
                     : "-"}
                 </td>
                 <td className="p-3 text-right">
                   {payroll.allowance > 0
-                    ? payroll.allowance.toLocaleString()
+                    ? formatThaiCurrency(payroll.allowance)
                     : "-"}
                 </td>
                 <td className="p-3 text-right text-red-500">
                   {payroll.deduct > 0
-                    ? `-${payroll.deduct.toLocaleString()}`
+                    ? `-${formatThaiCurrency(payroll.deduct)}`
                     : "-"}
                 </td>
                 <td className="bg-blue-50/50 p-3 text-right font-bold text-blue-800">
-                  ฿{payroll.total.toLocaleString()}
+                  {formatThaiCurrency(payroll.total)}
                 </td>
               </tr>
             ))}
@@ -973,7 +1044,7 @@ function MenuButton({ icon: Icon, label, active, onClick }: MenuButtonProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
+      className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 transition-colors focus-visible:ring-2 focus-visible:ring-blue-300 ${
         active
           ? "bg-blue-600 text-white"
           : "text-slate-300 hover:bg-slate-800 hover:text-white"
@@ -990,7 +1061,7 @@ function StatCard({ title, value, icon: Icon, color, onClick }: StatCardProps) {
     <button
       type="button"
       onClick={onClick}
-      className="flex cursor-pointer items-center gap-4 rounded-xl border border-gray-100 bg-white p-5 text-left shadow-sm transition-shadow hover:border-blue-200 hover:shadow-md"
+      className="flex cursor-pointer items-center gap-4 rounded-xl border border-gray-100 bg-white p-5 text-left shadow-sm transition-shadow hover:border-blue-200 hover:shadow-md focus-visible:ring-2 focus-visible:ring-blue-500"
     >
       <div className={`${color} rounded-lg p-3 text-white`}>
         <Icon className="h-6 w-6" />
@@ -1018,7 +1089,7 @@ function TabButton({ active, onClick, icon: Icon, label }: TabButtonProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+      className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
         active
           ? "border-blue-600 text-blue-600"
           : "border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-800"
