@@ -1,8 +1,9 @@
 "use client";
 
 import { Plus, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { client } from "../../../lib/api-client";
+import { useMemo, useState } from "react";
+import useSWR from "swr";
+import { client, unwrapEdenResponse } from "../../../lib/api-client";
 import { formatDisplayDate, formatThaiCurrency } from "./hr.constants";
 import { StatusBadge } from "../../ui/StatusBadge";
 import type { Employee } from "./hr.types";
@@ -12,40 +13,12 @@ type EmployeeListProps = {
 };
 
 export function EmployeeList({ onSelect }: EmployeeListProps) {
-  const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isActive = true;
-
-    async function loadEmployees() {
-      setIsLoading(true);
-      setErrorMessage(null);
-
-      const response = await client.api.hr.employees.get();
-
-      if (!isActive) {
-        return;
-      }
-
-      if (response.error) {
-        setErrorMessage("ไม่สามารถโหลดทะเบียนพนักงานได้");
-        setIsLoading(false);
-        return;
-      }
-
-      setEmployees(response.data ?? []);
-      setIsLoading(false);
-    }
-
-    void loadEmployees();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
+  const { data: employees = [], error, isLoading } = useSWR<Employee[]>(
+    "hr-employees",
+    () => unwrapEdenResponse(client.api.hr.employees.get()),
+  );
 
   const filteredEmployees = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -71,10 +44,10 @@ export function EmployeeList({ onSelect }: EmployeeListProps) {
     );
   }
 
-  if (errorMessage) {
+  if (error) {
     return (
       <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-sm text-red-700 shadow-sm">
-        {errorMessage}
+        {error instanceof Error ? error.message : "ไม่สามารถโหลดทะเบียนพนักงานได้"}
       </div>
     );
   }
