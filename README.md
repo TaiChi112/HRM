@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HR Easy
 
-## Getting Started
+HR Easy is a hybrid HR dashboard built with Next.js, Elysia, Prisma v7, and PostgreSQL. The frontend renders the UI shell, the Elysia API serves typed HR data, and Prisma provides the data access layer for both local development and production container builds.
 
-First, run the development server:
+## Project Overview
+
+- Next.js App Router UI for the HR dashboard experience.
+- Elysia API bridge for typed employee, attendance, and payroll endpoints.
+- Prisma v7 with PostgreSQL for the repository layer and formal migration history.
+- Docker-based full-stack development and production builds.
+
+The request flow is documented in [docs/architecture.md](docs/architecture.md).
+
+## Prerequisites
+
+- Bun 1.3 or newer.
+- Docker Desktop on Windows, with WSL integration enabled for container commands.
+- PostgreSQL runs through Docker Compose; no separate local database install is required.
+
+## Local Setup
+
+### 1. Clone the repository
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <repository-url>
+cd hr-easy
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install dependencies
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+bun install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Start PostgreSQL and the web app with Docker Compose
 
-## Learn More
+```bash
+docker compose up -d --build
+```
 
-To learn more about Next.js, take a look at the following resources:
+The `web` service is configured to talk to the `postgres` service over the internal Docker network.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 4. Apply Prisma migrations
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+bunx prisma migrate dev
+```
 
-## Deploy on Vercel
+Use `bunx prisma migrate dev --name <migration-name>` when making schema changes.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 5. Seed the database
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+bun run prisma/seed.ts
+```
+
+The seed script inserts sample employees, attendance rows, and payroll rows.
+
+### 6. Run the development server
+
+```bash
+bun run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
+
+## Development Notes
+
+- The Next.js app is configured with standalone output for production container builds.
+- The Prisma client is generated into `generated/prisma`.
+- The UI uses the Eden client to consume typed Elysia routes.
+- Date values are formatted before rendering so Prisma `Date` objects do not crash React.
+
+## Architecture
+
+See [docs/architecture.md](docs/architecture.md) for a boundary-oriented overview of the frontend shell, Elysia API layer, and Prisma repository implementation.
+
+## CI/CD Pipeline
+
+The GitHub Actions workflow in [.github/workflows/ci.yml](.github/workflows/ci.yml) currently performs the following:
+
+- Installs Bun dependencies.
+- Generates the Prisma client.
+- Runs strict TypeScript checking with `bunx tsc --noEmit`.
+- Runs the Playwright smoke suite against the local dev server.
+- Uploads the Playwright report artifact when E2E tests fail.
+- Builds and pushes the production Docker image to GitHub Container Registry on pushes to `main`.
+
+## Useful Commands
+
+```bash
+bun run dev
+bun run build
+bunx prisma migrate dev --name init
+bunx prisma db seed
+bunx playwright test
+docker compose up -d --build
+docker compose down -v
+```
+
+## License
+
+No license has been specified for this repository.
