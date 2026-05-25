@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Employee {
+  id         String  @id @db.VarChar(20)
+  name       String  @db.VarChar(100)
+  position   String  @db.VarChar(100)
+  department String  @db.VarChar(100)
+  startDate  String  @db.VarChar(10)
+  salary     Int
+  status     String  @db.VarChar(20)
+
+  attendance Attendance[]
+  payroll    Payroll[]
+}
+
+model Attendance {
+  id     String @id @default(cuid())
+  date   String @db.VarChar(10)
+  empId  String @db.VarChar(20)
+  name   String @db.VarChar(100)
+  type   String @db.VarChar(20)
+  note   String @db.VarChar(255)
+
+  employee Employee @relation(fields: [empId], references: [id], onDelete: Cascade)
+
+  @@index([empId])
+}
+
+model Payroll {
+  id         String @id @default(cuid())
+  empId      String @db.VarChar(20)
+  name       String @db.VarChar(100)
+  base       Int
+  commission Int
+  allowance  Int
+  deduct     Int
+  total      Int
+
+  employee Employee @relation(fields: [empId], references: [id], onDelete: Cascade)
+
+  @@index([empId])
+}
