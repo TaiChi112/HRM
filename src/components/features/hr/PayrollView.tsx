@@ -1,44 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { client } from "../../../lib/api-client";
+import useSWR from "swr";
+import { client, unwrapEdenResponse } from "../../../lib/api-client";
 import { formatThaiCurrency, getCurrentMonthThai } from "./hr.constants";
 import type { PayrollRecord } from "./hr.types";
 
 export function PayrollView() {
-  const [payroll, setPayroll] = useState<PayrollRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isActive = true;
-
-    async function loadPayroll() {
-      setIsLoading(true);
-      setErrorMessage(null);
-
-      const response = await client.api.hr.payroll.get();
-
-      if (!isActive) {
-        return;
-      }
-
-      if (response.error) {
-        setErrorMessage("ไม่สามารถโหลดข้อมูลเงินเดือนได้");
-        setIsLoading(false);
-        return;
-      }
-
-      setPayroll(response.data ?? []);
-      setIsLoading(false);
-    }
-
-    void loadPayroll();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
+  const { data: payroll = [], error, isLoading } = useSWR<PayrollRecord[]>(
+    "hr-payroll",
+    () => unwrapEdenResponse(client.api.hr.payroll.get()),
+  );
 
   if (isLoading) {
     return (
@@ -48,10 +19,10 @@ export function PayrollView() {
     );
   }
 
-  if (errorMessage) {
+  if (error) {
     return (
       <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-sm text-red-700 shadow-sm">
-        {errorMessage}
+        {error instanceof Error ? error.message : "ไม่สามารถโหลดข้อมูลเงินเดือนได้"}
       </div>
     );
   }
