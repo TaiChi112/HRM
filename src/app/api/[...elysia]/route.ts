@@ -1,7 +1,20 @@
+import { auth } from "@/auth";
 import { Elysia } from "elysia";
 import { hrController } from "../../../modules/hr/hr.controller";
 
-const app = new Elysia({ prefix: "/api" }).use(hrController);
+const app = new Elysia({ prefix: "/api" })
+	.derive(async () => {
+		const session = await auth();
+
+		return { session };
+	})
+	.onBeforeHandle(({ session, set }) => {
+		if (!session?.user) {
+			set.status = 401;
+			return "Unauthorized";
+		}
+	})
+	.use(hrController);
 
 export type AppType = typeof app;
 
