@@ -14,6 +14,7 @@ export type MenuDefinition = {
   key: MenuKey;
   label: string;
   icon: LucideIcon;
+  href?: string;
 };
 
 export type DashboardStat = {

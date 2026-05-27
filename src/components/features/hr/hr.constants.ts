@@ -24,6 +24,7 @@ export const menuItems: MenuDefinition[] = [
     key: "attendance",
     label: "เวลาทำงาน & การลา",
     icon: CalendarClock,
+    href: "/dashboard/leaves",
   },
   { key: "payroll", label: "ระบบเงินเดือน", icon: CircleDollarSign },
 ];
