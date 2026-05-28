@@ -36,10 +36,19 @@ const PayrollSchema = t.Object({
   total: t.Number(),
 });
 
+const EmployeeQuerySchema = t.Object({
+  search: t.Optional(t.String()),
+});
+
 export const hrController = new Elysia({ prefix: "/hr" })
-  .get("/employees", () => hrService.getEmployees(), {
-    response: t.Array(EmployeeSchema),
-  })
+  .get(
+    "/employees",
+    ({ query }) => hrService.getEmployees(query.search),
+    {
+      query: EmployeeQuerySchema,
+      response: t.Array(EmployeeSchema),
+    },
+  )
   .get("/attendance", () => hrService.getAttendance(), {
     response: t.Array(AttendanceSchema),
   })
