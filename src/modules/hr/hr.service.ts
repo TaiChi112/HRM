@@ -123,6 +123,23 @@ function cloneRecords<TRecord>(records: TRecord[]): TRecord[] {
   return records.map((record) => ({ ...record }));
 }
 
+function filterEmployeesBySearch(
+  employees: Employee[],
+  search: string,
+): Employee[] {
+  const normalizedSearch = search.trim().toLowerCase();
+
+  if (normalizedSearch.length === 0) {
+    return employees;
+  }
+
+  return employees.filter((employee) => {
+    return [employee.id, employee.name].some((value) =>
+      value.toLowerCase().includes(normalizedSearch),
+    );
+  });
+}
+
 function createPrismaClient(): PrismaClient | null {
   const connectionString = process.env.DATABASE_URL;
 
@@ -249,12 +266,39 @@ async function executeWithFallback<TRecord>(
 }
 
 export const hrService = {
-  async getEmployees(): Promise<Employee[]> {
-    return executeWithFallback(fallbackEmployees, async (client) => {
+  async getEmployees(search?: string): Promise<Employee[]> {
+    const filteredFallbackEmployees = filterEmployeesBySearch(
+      fallbackEmployees,
+      search ?? "",
+    );
+
+    return executeWithFallback(filteredFallbackEmployees, async (client) => {
+      const normalizedSearch = search?.trim();
+
       const employees = await client.employee.findMany({
         orderBy: {
           id: "asc",
         },
+        ...(normalizedSearch
+          ? {
+              where: {
+                OR: [
+                  {
+                    name: {
+                      contains: normalizedSearch,
+                      mode: "insensitive",
+                    },
+                  },
+                  {
+                    id: {
+                      contains: normalizedSearch,
+                      mode: "insensitive",
+                    },
+                  },
+                ],
+              },
+            }
+          : {}),
       });
 
       return employees.map(toEmployee);
